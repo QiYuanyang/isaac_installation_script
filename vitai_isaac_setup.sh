@@ -314,6 +314,58 @@ get_isaac_lab_version(){
     log_warning "无法检测Isaac Lab版本"
 }
 
+# ==============================================================================
+# Python版本检测
+# ==============================================================================
+detect_expected_python_version(){
+    echo ""
+    log_info "检测Isaac Sim版本以确定Python版本..."
+    
+    # 检查Isaac Sim版本
+    if [[ -z "$ISAACSIM_VERSION" ]]; then
+        log_warning "Isaac Sim版本未知，将由Isaac Lab自动选择Python版本"
+        return 0
+    fi
+    
+    # 解析主版本号和次版本号
+    local major_version minor_version
+    if [[ "$ISAACSIM_VERSION" =~ ^([0-9]+)\.([0-9]+) ]]; then
+        major_version="${BASH_REMATCH[1]}"
+        minor_version="${BASH_REMATCH[2]}"
+    else
+        log_warning "无法解析Isaac Sim版本: $ISAACSIM_VERSION"
+        return 0
+    fi
+    
+    # 根据版本确定Python版本
+    local expected_python_version
+    if [[ $major_version -eq 4 && $minor_version -eq 5 ]]; then
+        expected_python_version="3.10"
+        log_info "检测到 Isaac Sim 4.5.x → Isaac Lab将自动安装 Python 3.10"
+    elif [[ $major_version -ge 5 ]] || [[ $major_version -eq 4 && $minor_version -gt 5 ]]; then
+        expected_python_version="3.11"
+        log_info "检测到 Isaac Sim ${major_version}.${minor_version} → Isaac Lab将自动安装 Python 3.11"
+    else
+        expected_python_version="未知"
+        log_warning "Isaac Sim版本 $ISAACSIM_VERSION 可能不受支持"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}📋 Python版本选择说明${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo "Isaac Sim版本: $ISAACSIM_VERSION"
+    echo "预期Python版本: $expected_python_version"
+    echo ""
+    echo "Isaac Lab会根据Isaac Sim版本自动选择Python版本:"
+    echo "  • Isaac Sim 4.5.x  → Python 3.10"
+    echo "  • Isaac Sim ≥ 5.0  → Python 3.11"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    return 0
+}
+
 create_isaac_sim_symbolic_link(){
     echo ""
     log_info "创建Isaac Sim符号链接..."
@@ -482,6 +534,9 @@ setup_conda_env(){
     export ISAACSIM_PATH="$ISAACSIM_PATH"
     log_info "设置环境变量: ISAACSIM_PATH=$ISAACSIM_PATH"
     
+    # 检测预期的Python版本
+    detect_expected_python_version
+    
     echo ""
     log_info "开始创建Conda环境..."
     echo ""
@@ -490,7 +545,8 @@ setup_conda_env(){
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo "环境名称: $CONDA_ENV_NAME"
     echo "安装路径: $ISAACLAB_PATH"
-    echo "Isaac Sim: $ISAACSIM_PATH"
+    echo "Isaac Sim: $ISAACSIM_PATH ($ISAACSIM_VERSION)"
+    echo "Python版本: 自动选择 (由Isaac Lab根据Isaac Sim版本决定)"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     
@@ -546,6 +602,17 @@ setup_conda_env(){
         # 验证环境是否创建成功
         if conda env list | grep -q "^$CONDA_ENV_NAME "; then
             log_success "环境 '$CONDA_ENV_NAME' 验证成功"
+            
+            # 验证Python版本
+            echo ""
+            log_info "验证已安装的Python版本..."
+            local installed_python_version
+            installed_python_version=$(conda run -n "$CONDA_ENV_NAME" python --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            if [[ -n "$installed_python_version" ]]; then
+                log_success "已安装Python版本: $installed_python_version"
+            else
+                log_warning "无法检测Python版本"
+            fi
             
             echo ""
             echo -e "${GREEN}✅ 环境创建完成！${NC}"
@@ -1024,6 +1091,10 @@ main() {
     echo ""
     log_info "Isaac Lab Path:     $ISAACLAB_PATH"
     log_info "Isaac Lab Version:  $ISAACLAB_VERSION"
+    echo ""
+    log_info "💡 Python版本将由Isaac Lab根据Isaac Sim版本自动选择"
+    log_info "   Isaac Sim 4.5.x  → Python 3.10"
+    log_info "   Isaac Sim ≥ 5.0  → Python 3.11"
 
     if [[ -n "$ISAACLAB_PATH" ]]; then
         create_isaac_sim_symbolic_link
