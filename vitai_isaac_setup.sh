@@ -153,43 +153,68 @@ get_isaac_sim_dir(){
         for i in "${!isaac_sim_dirs[@]}"; do
             echo "  $((i+1)). ${isaac_sim_dirs[$i]} -> $SCRIPT_DIR/${isaac_sim_dirs[$i]}"
         done
+        echo "  0. 手动输入其他路径"
+        echo ""
         
-        # 自动选择第一个目录
-        ISAACSIM_PATH="$SCRIPT_DIR/${isaac_sim_dirs[0]}"
-        log_success "自动选择目录: ${isaac_sim_dirs[0]}"
-        
-        return 0
-    else
-        log_warning "未找到Isaac Sim目录"
-        
-        # 手动输入路径
+        # 让用户选择目录
         while true; do
-            log_prompt "请输入Isaac Sim的完整路径: "
-            read -r manual_path
+            log_prompt "请选择要使用的Isaac Sim目录 [1-${#isaac_sim_dirs[@]}] (默认: 1): "
+            read -r choice
             
-            # 去除路径两端的引号和空格
-            manual_path=$(echo "$manual_path" | sed 's/^["'"'"']\|["'"'"']$//g' | xargs)
-            
-            if [[ -z "$manual_path" ]]; then
-                log_warning "路径不能为空，请重新输入"
-                continue
+            # 默认选择第一个
+            if [[ -z "$choice" ]]; then
+                choice=1
             fi
             
-            # 展开波浪号
-            manual_path="${manual_path/#\~/$HOME}"
-            
-            # 检查目录是否存在
-            if [[ ! -d "$manual_path" ]]; then
-                log_error "目录不存在: $manual_path"
-                continue
+            # 验证输入
+            if [[ "$choice" == "0" ]]; then
+                # 用户选择手动输入
+                break
+            elif [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -ge 1 ]] && [[ "$choice" -le ${#isaac_sim_dirs[@]} ]]; then
+                local selected_idx=$((choice - 1))
+                ISAACSIM_PATH="$SCRIPT_DIR/${isaac_sim_dirs[$selected_idx]}"
+                log_success "选择目录: ${isaac_sim_dirs[$selected_idx]}"
+                return 0
+            else
+                log_warning "无效选择，请输入 0-${#isaac_sim_dirs[@]} 之间的数字"
             fi
-            
-            # 转换为绝对路径
-            ISAACSIM_PATH=$(cd "$manual_path" && pwd)
-            log_success "设置ISAACSIM_PATH为 $ISAACSIM_PATH 成功"
-            return 0
         done
     fi
+    
+    # 手动输入路径（当没有找到目录或用户选择手动输入时）
+    if [[ ${#isaac_sim_dirs[@]} -eq 0 ]]; then
+        log_warning "未找到Isaac Sim目录"
+    else
+        log_info "您选择了手动输入路径"
+    fi
+    
+    # 手动输入路径
+    while true; do
+        log_prompt "请输入Isaac Sim的完整路径: "
+        read -r manual_path
+        
+        # 去除路径两端的引号和空格
+        manual_path=$(echo "$manual_path" | sed 's/^["'"'"']\|["'"'"']$//g' | xargs)
+        
+        if [[ -z "$manual_path" ]]; then
+            log_warning "路径不能为空，请重新输入"
+            continue
+        fi
+        
+        # 展开波浪号
+        manual_path="${manual_path/#\~/$HOME}"
+        
+        # 检查目录是否存在
+        if [[ ! -d "$manual_path" ]]; then
+            log_error "目录不存在: $manual_path"
+            continue
+        fi
+        
+        # 转换为绝对路径
+        ISAACSIM_PATH=$(cd "$manual_path" && pwd)
+        log_success "设置ISAACSIM_PATH为 $ISAACSIM_PATH 成功"
+        return 0
+    done
 }
 
 get_isaac_sim_version(){
